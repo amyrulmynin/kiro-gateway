@@ -9,10 +9,9 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install su-exec for dropping privileges in entrypoint
+# Install gosu for dropping privileges in entrypoint
 RUN apt-get update && apt-get install -y --no-install-recommends gosu \
-    && rm -rf /var/lib/apt/lists/* \
-    && ln -s /usr/sbin/gosu /usr/local/bin/su-exec
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
 RUN groupadd -r kiro && useradd -r -g kiro kiro
