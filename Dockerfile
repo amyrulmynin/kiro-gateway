@@ -9,6 +9,11 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
+# Install su-exec for dropping privileges in entrypoint
+RUN apt-get update && apt-get install -y --no-install-recommends gosu \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/sbin/gosu /usr/local/bin/su-exec
+
 # Create non-root user for security
 RUN groupadd -r kiro && useradd -r -g kiro kiro
 
@@ -30,16 +35,15 @@ RUN rm -f credentials.json state.json
 # Create directories with proper permissions for non-root user
 RUN mkdir -p debug_logs data && chown -R kiro:kiro debug_logs data
 
-# Switch to non-root user
-USER kiro
+# Entrypoint fixes volume permissions then drops to kiro user
+COPY --chmod=755 entrypoint.sh /entrypoint.sh
 
 # Expose port
 EXPOSE 8000
 
 # Health check
-# Using httpx (our main HTTP library) instead of requests
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD python -c "import httpx; httpx.get('http://localhost:8000/health', timeout=5)"
 
-# Run the application
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python", "main.py"]
