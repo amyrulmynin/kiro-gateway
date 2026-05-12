@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 
 """
 FastAPI routes for Account Management API.
@@ -20,6 +20,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from kiro.config import PROXY_API_KEY, ACCOUNTS_CONFIG_FILE, ACCOUNTS_STATE_FILE
+from kiro.usage_tracker import get_stats_overview
 
 
 # --- Security scheme (same as routes_stats.py) ---
@@ -130,13 +131,27 @@ def _redact_token(token: str) -> str:
 
 
 def _get_account_status(account_id: str, state_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Get account status from state.json data."""
+    """Get account status from state.json data, enriched with usage_tracker stats."""
     accounts_state = state_data.get("accounts", {})
     account_state = accounts_state.get(account_id, {})
 
     failures = account_state.get("failures", 0)
     last_failure_time = account_state.get("last_failure_time", 0.0)
     stats = account_state.get("stats", {})
+
+    # If state.json has no stats, pull from usage_tracker (works in legacy mode)
+    total_requests = stats.get("total_requests", 0)
+    successful = stats.get("successful_requests", 0)
+    failed = stats.get("failed_requests", 0)
+
+    if total_requests == 0:
+        try:
+            overview = get_stats_overview()
+            total_requests = overview.get("total_requests", 0)
+            successful = overview.get("success_count", 0)
+            failed = overview.get("error_count", 0)
+        except Exception:
+            pass
 
     if failures == 0:
         status = "active"
@@ -149,9 +164,9 @@ def _get_account_status(account_id: str, state_data: Dict[str, Any]) -> Dict[str
         "status": status,
         "failures": failures,
         "last_failure_time": last_failure_time,
-        "total_requests": stats.get("total_requests", 0),
-        "successful_requests": stats.get("successful_requests", 0),
-        "failed_requests": stats.get("failed_requests", 0),
+        "total_requests": total_requests,
+        "successful_requests": successful,
+        "failed_requests": failed,
     }
 
 
