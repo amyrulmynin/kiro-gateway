@@ -809,6 +809,65 @@ class AccountManager:
                 return account
         raise RuntimeError("No initialized accounts available")
     
+    async def reload(self) -> None:
+        """
+        Hot reload credentials from disk.
+        
+        Re-reads credentials.json, preserves state for existing accounts,
+        removes state for deleted accounts, adds new accounts.
+        No server restart required.
+        """
+        async with self._lock:
+            logger.info("Hot reloading accounts from credentials.json...")
+            
+            # Save current state for preservation
+            old_accounts = dict(self._accounts)
+            
+            # Clear and reload
+            self._accounts.clear()
+            self._credentials_config.clear()
+            self._model_to_accounts.clear()
+        
+        # Reload credentials (outside lock - load_credentials acquires no lock)
+        await self.load_credentials()
+        
+        async with self._lock:
+            # Preserve state for accounts that still exist
+            for account_id, account in self._accounts.items():
+                if account_id in old_accounts:
+                    old = old_accounts[account_id]
+                    account.failures = old.failures
+                    account.last_failure_time = old.last_failure_time
+                    account.models_cached_at = old.models_cached_at
+                    account.stats = old.stats
+                    account.auth_manager = old.auth_manager
+                    account.model_cache = old.model_cache
+                    account.model_resolver = old.model_resolver
+            
+            # Rebuild model_to_accounts for preserved initialized accounts
+            for account_id, account in self._accounts.items():
+                if account.model_resolver:
+                    available_models = account.model_resolver.get_available_models()
+                    for model in available_models:
+                        if model not in self._model_to_accounts:
+                            self._model_to_accounts[model] = ModelAccountList()
+                        if account_id not in self._model_to_accounts[model].accounts:
+                            self._model_to_accounts[model].accounts.append(account_id)
+            
+            # Clamp current_account_index
+            if self._accounts:
+                self._current_account_index = min(
+                    self._current_account_index,
+                    len(self._accounts) - 1
+                )
+            else:
+                self._current_account_index = 0
+            
+            self._dirty = True
+            await self._save_state()
+            
+            logger.info(f"Hot reload complete: {len(self._accounts)} account(s)")
+
     def get_all_available_models(self) -> List[str]:
         """
         Collect unique models from all initialized accounts.

@@ -87,6 +87,7 @@ from kiro.account_manager import AccountManager
 from kiro.routes_openai import router as openai_router
 from kiro.routes_anthropic import router as anthropic_router
 from kiro.routes_stats import router as stats_router
+from kiro.routes_accounts import router as accounts_router
 from kiro.exceptions import validation_exception_handler
 from kiro.debug_middleware import DebugLoggerMiddleware
 
@@ -574,6 +575,9 @@ app.include_router(anthropic_router)
 
 # Usage Statistics API: /api/stats/*
 app.include_router(stats_router)
+
+# Account Management API: /api/accounts/*
+app.include_router(accounts_router)
 
 
 # --- Uvicorn log config ---
