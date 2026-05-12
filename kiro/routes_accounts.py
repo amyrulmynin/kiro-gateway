@@ -327,17 +327,29 @@ async def delete_account(account_idx: int, request: Request):
 async def reload_accounts(request: Request):
     """
     Force reload credentials.json from disk.
+    If gateway is in degraded mode, attempts to re-initialize accounts.
 
     Returns:
-        Reload status with account count
+        Reload status with account count and degraded mode status
     """
     account_manager = request.app.state.account_manager
     await account_manager.reload()
+
+    # Try to exit degraded mode by re-initializing accounts
+    was_degraded = getattr(request.app.state, 'degraded_mode', False)
+    if was_degraded:
+        all_accounts = list(account_manager._accounts.keys())
+        for account_id in all_accounts:
+            success = await account_manager._initialize_account(account_id)
+            if success:
+                request.app.state.degraded_mode = False
+                break
 
     credentials = _load_credentials_file()
     return {
         "message": "Accounts reloaded successfully",
         "total_accounts": len(credentials),
+        "degraded_mode": getattr(request.app.state, 'degraded_mode', False),
     }
 
 

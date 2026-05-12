@@ -180,6 +180,10 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
     Raises:
         HTTPException: On validation or API errors
     """
+    # Check degraded mode
+    if getattr(request.app.state, 'degraded_mode', False):
+        raise HTTPException(status_code=503, detail="Gateway in degraded mode - no active accounts. Please update your token via the dashboard.")
+
     logger.info(f"Request to /v1/chat/completions (model={request_data.model}, stream={request_data.stream})")
     
     _start_time = time.time()

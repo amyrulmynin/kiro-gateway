@@ -499,7 +499,10 @@ async def lifespan(app: FastAPI):
     
     if not initialized:
         logger.error("Failed to initialize any account. Check your credentials.")
-        raise RuntimeError("Failed to initialize any account")
+        logger.warning("Starting in DEGRADED MODE - management API available, chat endpoints will return 503")
+        app.state.degraded_mode = True
+    else:
+        app.state.degraded_mode = False
     
     # Save initial state
     await app.state.account_manager._save_state()
